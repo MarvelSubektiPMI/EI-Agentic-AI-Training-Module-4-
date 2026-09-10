@@ -1,0 +1,22 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Scrapy output / artifacts
+*.jsonl
+/*.json
+/*.csv
+.scrapy/
+httpcache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
