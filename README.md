@@ -16,15 +16,19 @@ validation/deduplication, polite crawling settings, and offline unit tests.
 ```
 scrapy.cfg                       # Scrapy project entry point
 requirements.txt
+run_interactive.py               # prompt-driven wrapper around GenericSpider
 quotes_scraper/
 ├── settings.py                  # crawl politeness, pipelines, caching, retries
 ├── items.py                     # QuoteItem: schema + cleaning processors
 ├── pipelines.py                 # ValidationPipeline, DuplicatesPipeline
 └── spiders/
-    └── quotes_spider.py         # QuotesSpider: crawl + pagination logic
+    ├── quotes_spider.py         # QuotesSpider: fixed target, crawl + pagination
+    └── generic_spider.py        # GenericSpider: scrape ANY site via run-time args
 tests/
-├── fixtures/quotes_page.html    # offline HTML fixture for the spider test
-└── test_quotes_spider.py        # parses the fixture, no network required
+├── fixtures/quotes_page.html    # offline HTML fixture for QuotesSpider's test
+├── fixtures/generic_page.html   # offline HTML fixture for GenericSpider's test
+├── test_quotes_spider.py        # parses the fixture, no network required
+└── test_generic_spider.py       # parses the fixture, no network required
 ```
 
 ## Setup
@@ -60,6 +64,56 @@ Each output record looks like:
   "source_url": "https://quotes.toscrape.com/"
 }
 ```
+
+## Scraping a different site (GenericSpider)
+
+`QuotesSpider` is hard-coded for quotes.toscrape.com. `GenericSpider` instead
+takes its target URL and CSS selectors as **run-time input**, so you can point
+it at a different site without writing any code.
+
+### Option A — interactive (recommended if you don't know Scrapy's `-a` syntax)
+
+```bash
+python run_interactive.py
+```
+
+You'll be prompted, step by step, for:
+
+1. The start URL to scrape.
+2. A CSS selector matching **one element per item** on the page (e.g.
+   `div.product`, `article.post`).
+3. One or more `field name` + `CSS selector` pairs, scoped inside each item
+   (press Enter on a blank name to stop adding fields). Append `[]` to a
+   selector to collect *all* matches for that field instead of just the
+   first — e.g. `a.tag::text[]` for a list of tags.
+4. Optionally, a CSS selector for the "next page" link, if the site paginates.
+5. Optionally, allowed domain(s) to keep the crawl from wandering off-site.
+6. An output file to write results to (`.json`, `.jsonl`, or `.csv`).
+
+It then runs the crawl and reports where the results were written.
+
+### Option B — direct CLI (`scrapy crawl -a ...`)
+
+```bash
+scrapy crawl generic \
+  -a start_url="https://quotes.toscrape.com/" \
+  -a item_selector="div.quote" \
+  -a fields='{"text": "span.text::text", "author": "small.author::text", "tags": "a.tag::text[]"}' \
+  -a next_page_selector="li.next a::attr(href)" \
+  -O output.jsonl
+```
+
+| Argument               | Required | Meaning                                                                 |
+| ----------------------- | -------- | ------------------------------------------------------------------------ |
+| `start_url`             | yes      | Page to start crawling from.                                             |
+| `item_selector`         | yes      | CSS selector matching one element per scraped item.                      |
+| `fields`                | yes      | JSON object: `{"field_name": "css_selector"}`. Add `[]` for multi-value.  |
+| `next_page_selector`    | no       | CSS selector for the pagination link's `href` (omit if no pagination).   |
+| `allowed_domains`       | no       | Comma-separated domains to restrict the crawl to.                        |
+
+`GenericSpider` disables the project's `ValidationPipeline`/`DuplicatesPipeline`
+for its own run (via `custom_settings`), since those assume quote-shaped items
+— your crawled fields flow straight to the output file as-is.
 
 ## Running the tests
 
